@@ -1,5 +1,8 @@
 <?php
 /**
+ * Copyright 2016 Pavol Senko
+ *
+ * Forked from dirkgroenen/Pinterest-API-PHP
  * Copyright 2015 Dirk Groenen
  *
  * (c) Dirk Groenen <dirk@bitlabs.nl>
