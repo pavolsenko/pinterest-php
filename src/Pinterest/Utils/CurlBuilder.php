@@ -13,6 +13,8 @@
 
 namespace DirkGroenen\Pinterest\Utils;
 
+use DirkGroenen\Pinterest\Exceptions\PinterestException;
+
 class CurlBuilder {
 
     /**
@@ -53,12 +55,12 @@ class CurlBuilder {
      *
      * @access public
      * @param  string   $option
-     * @param  false|string    $value
+     * @param  string   $value
      * @return $this
      */
-    public function setOption($option, $value)
+    public function setOption( $option, $value )
     {
-        curl_setopt($this->curl, $option, $value);
+        curl_setopt($this->curl, $option, $value );
 
         return $this;
     }
@@ -70,7 +72,7 @@ class CurlBuilder {
      * @param  array   $options
      * @return $this
      */
-    public function setOptions(array $options = [])
+    public function setOptions( array $options = [] )
     {
         curl_setopt_array($this->curl, $options);
 
@@ -81,7 +83,7 @@ class CurlBuilder {
      * Execute the curl request
      *
      * @access public
-     * @return false|string
+     * @return mixed
      */
     public function execute()
     {
@@ -92,7 +94,7 @@ class CurlBuilder {
      * Check if the curl request ended up with errors
      *
      * @access public
-     * @return integer
+     * @return boolean
      */
     public function hasErrors()
     {
@@ -159,18 +161,17 @@ class CurlBuilder {
      * Parse string headers into array
      *
      * @access private
-     * @param string $headers
+     * @param array $headers
      * @return array
      */
     private function parseHeaders($headers) {
         $result = array();
-        foreach (explode("\n", $headers) as $row) {
+        foreach(explode("\n", $headers) as $row){
             $header = explode(':', $row, 2);
-            if (count($header) == 2) {
+            if (count($header) == 2)
                 $result[$header[0]] = trim($header[1]);
-            } else {
+            else
                 $result[] = $header[0];
-            }
         }
         return $result;
     }
@@ -182,69 +183,72 @@ class CurlBuilder {
      *
      * @see http://slopjong.de/2012/03/31/curl-follow-locations-with-safe_mode-enabled-or-open_basedir-set/
      * @access private
-     * @return false|string
+     * @return mixed
      */
     private function execFollow() {
         $mr = 5;
         $body = null;
 
-        if (ini_get("open_basedir") == "" && ini_get("safe_mode" == "Off")) {
+        if(ini_get("open_basedir") == "" && ini_get("safe_mode" == "Off")){
             curl_setopt($this->curl, CURLOPT_FOLLOWLOCATION, $mr > 0);
             curl_setopt($this->curl, CURLOPT_MAXREDIRS, $mr);
-        } else {
+        }
+        else{
             $this->setOption(CURLOPT_FOLLOWLOCATION, false);
 
-            if ($CURLOPT_MAXREDIRS > 0) {
+            if($mr > 0){
                 $original_url = $this->getInfo(CURLINFO_EFFECTIVE_URL);
                 $newurl = $original_url;
 
-                $rch = curl_copy_handle($this->curl);
+                curl_setopt($this->curl, CURLOPT_HEADER, true);
+                //curl_setopt($rch, CURLOPT_NOBODY, true);
+                curl_setopt($this->curl, CURLOPT_FORBID_REUSE, false);
 
-                curl_setopt($rch, CURLOPT_HEADER, true);
-                curl_setopt($rch, CURLOPT_FORBID_REUSE, false);
+                do{
+                    curl_setopt($this->curl, CURLOPT_URL, $newurl);
+                    $response = curl_exec($this->curl);
 
-                do {
-                    curl_setopt($rch, CURLOPT_URL, $newurl);
-                    $response = curl_exec($rch);
-
-                    $header_size = curl_getinfo($rch, CURLINFO_HEADER_SIZE);
+                    $header_size = curl_getinfo($this->curl, CURLINFO_HEADER_SIZE);
                     $header = substr($response, 0, $header_size);
                     $body = substr($response, $header_size);
 
-                    if (curl_errno($rch)) {
+                    if(curl_errno($this->curl)){
                         $code = 0;
-                    } else {
-                        $code = curl_getinfo($rch, CURLINFO_HTTP_CODE);
+                    }
+                    else{
+                        $code = curl_getinfo($this->curl, CURLINFO_HTTP_CODE);
 
                         if ($code == 301 || $code == 302) {
                             preg_match('/Location:(.*?)\n/i', $header, $matches);
                             $newurl = trim(array_pop($matches));
-                        } else {
+                        }
+                        else{
                             $code = 0;
                         }
                     }
-                } while ($code && --$mr);
+                } while($code && --$mr);
 
-                curl_close($rch);
-
-                if (!$mr) {
-                    if ($mr === null) {
+                if(!$mr){
+                    if ($maxredirect === null){
                         trigger_error('Too many redirects.', E_USER_WARNING);
+                    }
+                    else{
+                        $maxredirect = 0;
                     }
 
                     return false;
                 }
                 $this->setOption(CURLOPT_URL, $newurl);
-
                 $this->headers = $this->parseHeaders($header);
+
             }
         }
 
-        if (!$body) {
+        if (!$body){
             curl_setopt($this->curl, CURLOPT_HEADER, true);
             $response = curl_exec($this->curl);
 
-            $header_size = curl_getinfo($rch, CURLINFO_HEADER_SIZE);
+            $header_size = curl_getinfo($this->curl, CURLINFO_HEADER_SIZE);
             $header = substr($response, 0, $header_size);
             $body = substr($response, $header_size);
 
